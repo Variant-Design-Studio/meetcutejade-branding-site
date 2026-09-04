@@ -1,16 +1,142 @@
 <!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#ffffff" />
-    <meta name="description" content="MEETCUTE JADE / 巧鹬卉 bilingual brand system — 简体中文与英式英语品牌战略、语言、视觉、产品文案与治理规范。" />
-    <link rel="stylesheet" href="./heading-alignment.css" />
-    <title>MEETCUTE JADE / 巧鹬卉 — Brand System 02</title>
-    <script type="module" crossorigin src="./assets/index-2qOMdWLM.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-oAS0BaoG.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <title>Meetcute Jade Branding System</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: #ffffff;
+      color: #111111;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    body {
+      display: grid;
+      min-height: 100vh;
+      place-items: center;
+    }
+
+    #status {
+      max-width: 32rem;
+      padding: 2rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main id="status">Access required.</main>
+
+  <script>
+    const statusElement = document.getElementById('status')
+
+    function decodeBase64Url(value) {
+      const normalised = value
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+      const padded = normalised.padEnd(
+        Math.ceil(normalised.length / 4) * 4,
+        '=',
+      )
+      const binary = atob(padded)
+      const output = new Uint8Array(binary.length)
+
+      for (let index = 0; index < binary.length; index += 1) {
+        output[index] = binary.charCodeAt(index)
+      }
+
+      return output
+    }
+
+    function concatenate(first, second) {
+      const output = new Uint8Array(first.length + second.length)
+      output.set(first, 0)
+      output.set(second, first.length)
+      return output
+    }
+
+    async function decrypt(record, keyBytes) {
+      const key = await crypto.subtle.importKey(
+        'raw',
+        keyBytes,
+        { name: 'AES-GCM' },
+        false,
+        ['decrypt'],
+      )
+      const ciphertext = concatenate(
+        decodeBase64Url(record.ciphertext),
+        decodeBase64Url(record.tag),
+      )
+      const plaintext = await crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv: decodeBase64Url(record.iv),
+          tagLength: 128,
+        },
+        key,
+        ciphertext,
+      )
+
+      return new Uint8Array(plaintext)
+    }
+
+    async function loadSite() {
+      const parameters = new URLSearchParams(window.location.hash.slice(1))
+      const viewer = parameters.get('viewer')
+      const encodedViewerKey = parameters.get('key')
+
+      if (
+        !viewer ||
+        !encodedViewerKey ||
+        !/^[A-Za-z0-9_-]{1,64}$/.test(viewer)
+      ) {
+        throw new Error('Access required')
+      }
+
+      const viewerKey = decodeBase64Url(encodedViewerKey)
+
+      if (viewerKey.length !== 32) {
+        throw new Error('Access required')
+      }
+
+      statusElement.textContent = 'Opening branding system…'
+
+      const wrappedKeyResponse = await fetch(
+        `./access/${encodeURIComponent(viewer)}.json`,
+        { cache: 'no-store' },
+      )
+
+      if (!wrappedKeyResponse.ok) {
+        throw new Error('Access required')
+      }
+
+      const wrappedKey = await wrappedKeyResponse.json()
+      const contentKey = await decrypt(wrappedKey, viewerKey)
+      const payloadResponse = await fetch('./payload.json', {
+        cache: 'no-store',
+      })
+
+      if (!payloadResponse.ok) {
+        throw new Error('Unable to load branding system')
+      }
+
+      const payload = await payloadResponse.json()
+      const htmlBytes = await decrypt(payload, contentKey)
+      const html = new TextDecoder().decode(htmlBytes)
+
+      document.open()
+      document.write(html)
+      document.close()
+    }
+
+    loadSite().catch(() => {
+      statusElement.textContent =
+        'Access required. This link does not contain a valid access credential.'
+    })
+  </script>
+</body>
 </html>
