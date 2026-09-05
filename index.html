@@ -59,6 +59,15 @@
       return output
     }
 
+    async function deriveViewerKey(secret) {
+      const digest = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(secret.trim()),
+      )
+
+      return new Uint8Array(digest)
+    }
+
     async function decrypt(record, keyBytes) {
       const key = await crypto.subtle.importKey(
         'raw',
@@ -87,21 +96,17 @@
     async function loadSite() {
       const parameters = new URLSearchParams(window.location.hash.slice(1))
       const viewer = parameters.get('viewer')
-      const encodedViewerKey = parameters.get('key')
+      const viewerSecret = parameters.get('key')
 
       if (
         !viewer ||
-        !encodedViewerKey ||
+        !viewerSecret ||
         !/^[A-Za-z0-9_-]{1,64}$/.test(viewer)
       ) {
         throw new Error('Access required')
       }
 
-      const viewerKey = decodeBase64Url(encodedViewerKey)
-
-      if (viewerKey.length !== 32) {
-        throw new Error('Access required')
-      }
+      const viewerKey = await deriveViewerKey(viewerSecret)
 
       statusElement.textContent = 'Opening branding system…'
 
